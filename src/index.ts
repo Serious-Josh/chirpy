@@ -8,6 +8,7 @@ export function main(){
 
     //global logging middleware
     app.use(middlewareLogResponses);
+    app.use(express.json());
 
     //static site with hit counter
     app.use("/app", middlewareMetricsInc, express.static("./src/app"));
