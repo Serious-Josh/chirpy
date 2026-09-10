@@ -1,5 +1,6 @@
 import express, {Request, Response} from "express";
 import {config} from "../config.js";
+import {BadRequestError} from "../errorHandling.js";
 
 export const apiRouter = express.Router();
 export const adminRouter = express.Router();
@@ -42,33 +43,28 @@ function handlerMetricsReset(req: Request, res: Response){
 async function chirpHandler(req: Request, res: Response){
     const reqBody = req.body;
 
-    try{
-        if(reqBody.body.length > 140){
-            res.status(400).send({error: "Chirp is too long"});
-        }
-        else{
-
-            const splitBody = reqBody.body.split(" ");
-
-            splitBody.forEach((word: string, index: number) => {
-                switch(word.toLowerCase()){
-                    case "kerfuffle":
-                    case "sharbert":
-                    case "fornax":
-                        splitBody[index] = "****";
-                        break;
-                    default:
-                        break;
-                }
-            })
-
-            const cleanedBody = splitBody.join(" ");
-
-            res.header("Content-Type", "application/json");
-            res.status(200).send({"cleanedBody": cleanedBody});
-        }
+    if(reqBody.body.length > 140){
+        throw new BadRequestError("Chirp is too long. Max length is 140");
     }
-    catch(error){
-        res.status(400).send({error: "Something went wrong"});
+    else{
+
+        const splitBody = reqBody.body.split(" ");
+
+        splitBody.forEach((word: string, index: number) => {
+            switch(word.toLowerCase()){
+                case "kerfuffle":
+                case "sharbert":
+                case "fornax":
+                    splitBody[index] = "****";
+                    break;
+                default:
+                    break;
+            }
+        })
+
+        const cleanedBody = splitBody.join(" ");
+
+        res.header("Content-Type", "application/json");
+        res.status(200).send({"cleanedBody": cleanedBody});
     }
 }
