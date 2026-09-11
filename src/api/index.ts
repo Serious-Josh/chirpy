@@ -20,7 +20,7 @@ export function handlerReadiness(req: Request, res: Response){
 }
 
 function handlerMetricsHTML(req: Request, res: Response){
-    const hits = config.fileserverHits;
+    const hits = config.api.fileserverHits;
     const html = `<html>
                     <body>
                         <h1>Welcome, Chirpy Admin</h1>
@@ -32,11 +32,11 @@ function handlerMetricsHTML(req: Request, res: Response){
 }
 
 function handlerMetricsOutput(req: Request, res: Response){
-    res.send(`Hits: ${config.fileserverHits}`);
+    res.send(`Hits: ${config.api.fileserverHits}`);
 }
 
 function handlerMetricsReset(req: Request, res: Response){
-    config.fileserverHits = 0;
+    config.api.fileserverHits = 0;
     res.send("OK");
 }
 

@@ -1,5 +1,24 @@
-export type APIConfig = {
-    fileserverHits: number;
+import { dbConfig, DBConfig } from "./db/index.js";
+
+process.loadEnvFile();
+
+export type AppConfig = {
+    api: APIConfig;
+    db: DBConfig;
 }
 
-export const config: APIConfig = {fileserverHits: 0};
+export type APIConfig = {
+    fileserverHits: number;
+    port: number;
+}
+
+export const apiConfig: APIConfig = {fileserverHits: 0, port: +envOrThrow("PORT")};
+export const config: AppConfig = {api: apiConfig, db: dbConfig};
+
+function envOrThrow(key: string): string {
+    const value = process.env[key];
+    if(!value){
+        throw new Error(`Environmental variable ${key} is not set`);
+    }
+    return value;
+}

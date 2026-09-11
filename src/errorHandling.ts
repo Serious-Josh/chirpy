@@ -26,7 +26,6 @@ export class NotFoundError extends Error {
 
 export function errorHandler(err: Error, req: Request, res: Response, next: NextFunction){
     console.log(`Error encountered: ${err}`);
-    const statusCode = 500;
 
     if(err instanceof BadRequestError){
         res.status(400).send({"error": err.message});
