@@ -1,4 +1,4 @@
-import { dbConfig, DBConfig } from "./db/index.js";
+import { dbConfig, DBConfig } from "./db/config.js";
 
 process.loadEnvFile();
 
@@ -10,9 +10,10 @@ export type AppConfig = {
 export type APIConfig = {
     fileserverHits: number;
     port: number;
+    platform: string;
 }
 
-export const apiConfig: APIConfig = {fileserverHits: 0, port: +envOrThrow("PORT")};
+export const apiConfig: APIConfig = {fileserverHits: 0, port: +envOrThrow("PORT"), platform: envOrThrow("PLATFORM")};
 export const config: AppConfig = {api: apiConfig, db: dbConfig};
 
 function envOrThrow(key: string): string {

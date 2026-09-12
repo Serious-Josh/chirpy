@@ -1,18 +1,21 @@
-import express, {Request, Response} from "express";
+import express, {request, Request, Response} from "express";
 import {config} from "../config.js";
-import {BadRequestError} from "../errorHandling.js";
+import {BadRequestError, ForbiddenError} from "../errorHandling.js";
+import { clearUsers, createUser } from "../db/queries/users.js";
+import { createChirp } from "../db/queries/chrips.js";
 
 export const apiRouter = express.Router();
 export const adminRouter = express.Router();
 
 //api routing
 apiRouter.get("/healthz", handlerReadiness);
-apiRouter.post("/validate_chirp", chirpHandler);
+apiRouter.post("/users", addUser);
+apiRouter.post("/chirps", addChirp);
 
 
 //admin routing
 adminRouter.get("/metrics", handlerMetricsHTML)
-adminRouter.post("/reset", handlerMetricsReset);
+adminRouter.post("/reset", handlerReset);
 
 export function handlerReadiness(req: Request, res: Response){
     res.set('Content-Type', 'text/plain; charset=utf-8');
@@ -35,12 +38,24 @@ function handlerMetricsOutput(req: Request, res: Response){
     res.send(`Hits: ${config.api.fileserverHits}`);
 }
 
-function handlerMetricsReset(req: Request, res: Response){
-    config.api.fileserverHits = 0;
-    res.send("OK");
+async function handlerReset(req: Request, res: Response){
+
+    if(config.api.platform != "dev"){
+        throw new ForbiddenError("You do not have access to this endpoint.");
+    }else{
+        config.api.fileserverHits = 0;
+        await clearUsers();
+
+        res.send("OK");
+    }
 }
 
-async function chirpHandler(req: Request, res: Response){
+async function addUser(req: Request, res: Response){
+    const user = await createUser({email: req.body.email});
+    res.status(201).send(user);
+}
+
+async function addChirp(req: Request, res: Response){
     const reqBody = req.body;
 
     if(reqBody.body.length > 140){
@@ -64,7 +79,13 @@ async function chirpHandler(req: Request, res: Response){
 
         const cleanedBody = splitBody.join(" ");
 
-        res.header("Content-Type", "application/json");
-        res.status(200).send({"cleanedBody": cleanedBody});
+        try{
+            const chirp = await createChirp({body: cleanedBody, userId: reqBody.userId});
+            res.header("Content-Type", "application/json");
+            res.status(201).send(chirp);
+        }
+        catch(e){
+            console.log(e);
+        }
     }
 }
