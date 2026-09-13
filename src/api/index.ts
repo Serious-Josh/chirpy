@@ -1,8 +1,8 @@
 import express, {request, Request, Response} from "express";
 import {config} from "../config.js";
-import {BadRequestError, ForbiddenError} from "../errorHandling.js";
+import {BadRequestError, ForbiddenError, NotFoundError} from "../errorHandling.js";
 import { clearUsers, createUser } from "../db/queries/users.js";
-import { createChirp } from "../db/queries/chrips.js";
+import { createChirp, getAllChrips, getSingleChrip } from "../db/queries/chrips.js";
 
 export const apiRouter = express.Router();
 export const adminRouter = express.Router();
@@ -10,6 +10,10 @@ export const adminRouter = express.Router();
 //api routing
 apiRouter.get("/healthz", handlerReadiness);
 apiRouter.post("/users", addUser);
+
+//chirps
+apiRouter.get("/chirps", getChripsHandler);
+apiRouter.get("/chirps/:chirpId", getSingleChirpHandler);
 apiRouter.post("/chirps", addChirp);
 
 
@@ -17,6 +21,13 @@ apiRouter.post("/chirps", addChirp);
 adminRouter.get("/metrics", handlerMetricsHTML)
 adminRouter.post("/reset", handlerReset);
 
+
+
+//---------------
+// Handlers
+//---------------
+
+//general handlers
 export function handlerReadiness(req: Request, res: Response){
     res.set('Content-Type', 'text/plain; charset=utf-8');
     res.send(`OK`);
@@ -50,11 +61,15 @@ async function handlerReset(req: Request, res: Response){
     }
 }
 
+
+//users handlers
 async function addUser(req: Request, res: Response){
     const user = await createUser({email: req.body.email});
     res.status(201).send(user);
 }
 
+
+//chirps handlers
 async function addChirp(req: Request, res: Response){
     const reqBody = req.body;
 
@@ -88,4 +103,30 @@ async function addChirp(req: Request, res: Response){
             console.log(e);
         }
     }
+}
+
+async function getChripsHandler(req: Request, res: Response){
+    try{
+        const chrips = await getAllChrips();
+        res.status(200).send(chrips);
+    }
+    catch(e){
+        console.log(e);
+    }
+}
+
+async function getSingleChirpHandler(req: Request, res: Response){
+    const chirpId = req.params.chirpId;
+
+    if(typeof chirpId !== "string"){
+        throw new BadRequestError(`Incorrect chirpId. chirpId: ${chirpId}`);
+    }
+
+    const chirp = await getSingleChrip(chirpId);
+
+    if(chirp == undefined){
+        throw new NotFoundError("Chrip not found");
+    }
+    
+    res.status(200).send(chirp);
 }
