@@ -15,6 +15,13 @@
       "when": 1789244897494,
       "tag": "0001_hard_peter_parker",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789375574452,
+      "tag": "0002_productive_thor",
+      "breakpoints": true
     }
   ]
 }

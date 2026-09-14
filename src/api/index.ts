@@ -1,8 +1,9 @@
 import express, {request, Request, Response} from "express";
 import {config} from "../config.js";
-import {BadRequestError, ForbiddenError, NotFoundError} from "../errorHandling.js";
-import { clearUsers, createUser } from "../db/queries/users.js";
+import {BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError} from "../errorHandling.js";
+import { clearUsers, createUser, getUserFromEmail } from "../db/queries/users.js";
 import { createChirp, getAllChrips, getSingleChrip } from "../db/queries/chrips.js";
+import { checkPasswordHash, hashPassword } from "../auth.js"
 
 export const apiRouter = express.Router();
 export const adminRouter = express.Router();
@@ -10,6 +11,7 @@ export const adminRouter = express.Router();
 //api routing
 apiRouter.get("/healthz", handlerReadiness);
 apiRouter.post("/users", addUser);
+apiRouter.post("/login", loginHandler);
 
 //chirps
 apiRouter.get("/chirps", getChripsHandler);
@@ -64,8 +66,27 @@ async function handlerReset(req: Request, res: Response){
 
 //users handlers
 async function addUser(req: Request, res: Response){
-    const user = await createUser({email: req.body.email});
-    res.status(201).send(user);
+    const user = await createUser({email: req.body.email,
+                                password: await hashPassword(req.body.password)});
+    const {password, ...noPass} = user;
+    res.status(201).send(noPass);
+}
+
+async function loginHandler(req: Request, res: Response){
+    const user = await getUserFromEmail(req.body.email);
+
+    if(user == undefined){
+        throw new UnauthorizedError("Incorrect email or password.");
+    }
+
+    if(await checkPasswordHash(req.body.password, user.password)){
+        //login
+        const {password, ...noPass} = user;
+        res.status(200).send(noPass);
+    }
+    else{
+        throw new UnauthorizedError("Incorrect email or password.");
+    }
 }
 
 
