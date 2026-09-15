@@ -1,4 +1,8 @@
 import * as argon2 from "argon2";
+import jwt, { JwtPayload } from "jsonwebtoken"
+import {Request} from "express";
+
+type payload = Pick<JwtPayload, "iss" | "sub" | "iat" | "exp">;
 
 export async function hashPassword(password: string): Promise<string>{
     try{
@@ -18,4 +22,40 @@ export async function checkPasswordHash(password: string, hash: string): Promise
         console.error("Password verification error:", error);
         throw error;
     }
+}
+
+
+// ---------------
+// JWT Functions
+// ---------------
+
+export function makeJWT(userID: string, expiresIn: number, secret: string): string{
+    const time = Math.floor(Date.now() / 1000);
+    const payload: payload = {iss: "chirpy", sub: userID, iat: time, exp: time + expiresIn};
+    const token = jwt.sign(payload, secret);
+    return token;
+}
+
+export function validateJWT(tokenString: string, secret: string): string{
+    try{
+        const decoded = jwt.verify(tokenString, secret);
+        return decoded.sub as string;
+    }
+    catch(err){
+        if(err instanceof Error){
+            throw new Error("Invalid JWT");
+        }
+    }
+
+    throw new Error("Unknown validation error");
+}
+
+export function getBearerToken(req: Request): string{
+    const token = req.get("Authorization");
+
+    if(token == undefined){
+        throw new Error("No authorization information provided.");
+    }
+
+    return token;
 }

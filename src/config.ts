@@ -11,9 +11,10 @@ export type APIConfig = {
     fileserverHits: number;
     port: number;
     platform: string;
+    secretString: string;
 }
 
-export const apiConfig: APIConfig = {fileserverHits: 0, port: +envOrThrow("PORT"), platform: envOrThrow("PLATFORM")};
+export const apiConfig: APIConfig = {fileserverHits: 0, port: +envOrThrow("PORT"), platform: envOrThrow("PLATFORM"), secretString: envOrThrow("SECRET")};
 export const config: AppConfig = {api: apiConfig, db: dbConfig};
 
 function envOrThrow(key: string): string {

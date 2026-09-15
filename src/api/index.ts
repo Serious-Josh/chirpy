@@ -3,7 +3,7 @@ import {config} from "../config.js";
 import {BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError} from "../errorHandling.js";
 import { clearUsers, createUser, getUserFromEmail } from "../db/queries/users.js";
 import { createChirp, getAllChrips, getSingleChrip } from "../db/queries/chrips.js";
-import { checkPasswordHash, hashPassword } from "../auth.js"
+import { checkPasswordHash, hashPassword, makeJWT, validateJWT, getBearerToken } from "../auth.js"
 
 export const apiRouter = express.Router();
 export const adminRouter = express.Router();
@@ -47,10 +47,6 @@ function handlerMetricsHTML(req: Request, res: Response){
     res.send(html);
 }
 
-function handlerMetricsOutput(req: Request, res: Response){
-    res.send(`Hits: ${config.api.fileserverHits}`);
-}
-
 async function handlerReset(req: Request, res: Response){
 
     if(config.api.platform != "dev"){
@@ -75,6 +71,11 @@ async function addUser(req: Request, res: Response){
 async function loginHandler(req: Request, res: Response){
     const user = await getUserFromEmail(req.body.email);
 
+    const expiresInSeconds = req.body.expiresInSeconds ?? 3600;
+    const expires = expiresInSeconds > 3600 ? 3600 : expiresInSeconds;
+
+    const token = makeJWT(user.id, expires, config.api.secretString);
+
     if(user == undefined){
         throw new UnauthorizedError("Incorrect email or password.");
     }
@@ -82,7 +83,8 @@ async function loginHandler(req: Request, res: Response){
     if(await checkPasswordHash(req.body.password, user.password)){
         //login
         const {password, ...noPass} = user;
-        res.status(200).send(noPass);
+        const fullUser = {...noPass, "token": token}; 
+        res.status(200).send(fullUser);
     }
     else{
         throw new UnauthorizedError("Incorrect email or password.");
@@ -116,7 +118,13 @@ async function addChirp(req: Request, res: Response){
         const cleanedBody = splitBody.join(" ");
 
         try{
-            const chirp = await createChirp({body: cleanedBody, userId: reqBody.userId});
+            const userID = validateJWT(getBearerToken(req).slice(7), config.api.secretString);
+
+            if(userID == undefined){
+                throw new Error("Invalid authorization information.");
+            }
+
+            const chirp = await createChirp({body: cleanedBody, userId: userID});
             res.header("Content-Type", "application/json");
             res.status(201).send(chirp);
         }
