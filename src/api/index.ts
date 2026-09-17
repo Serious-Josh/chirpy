@@ -3,7 +3,8 @@ import {config} from "../config.js";
 import {BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError} from "../errorHandling.js";
 import { clearUsers, createUser, getUserFromEmail } from "../db/queries/users.js";
 import { createChirp, getAllChrips, getSingleChrip } from "../db/queries/chrips.js";
-import { checkPasswordHash, hashPassword, makeJWT, validateJWT, getBearerToken } from "../auth.js"
+import { checkPasswordHash, hashPassword, makeJWT, validateJWT, getBearerToken, makeRefreshToken } from "../auth.js"
+import { createRefreshToken, revokeRefreshToken, selectRefreshToken } from "../db/queries/refreshTokens.js";
 
 export const apiRouter = express.Router();
 export const adminRouter = express.Router();
@@ -12,6 +13,8 @@ export const adminRouter = express.Router();
 apiRouter.get("/healthz", handlerReadiness);
 apiRouter.post("/users", addUser);
 apiRouter.post("/login", loginHandler);
+apiRouter.post("/refresh", refreshHandler);
+apiRouter.post("/revoke", revokeHandler);
 
 //chirps
 apiRouter.get("/chirps", getChripsHandler);
@@ -59,6 +62,25 @@ async function handlerReset(req: Request, res: Response){
     }
 }
 
+async function refreshHandler(req: Request, res: Response){
+    const token = getBearerToken(req).slice(7);
+    const refreshToken = await selectRefreshToken(token);
+
+    if(refreshToken == undefined){
+        throw new UnauthorizedError("Invalid refresh token");
+    }
+    else{
+        res.status(200).send({"token": makeJWT(refreshToken.userId, 3600, config.api.secretString)});
+    }
+}
+
+async function revokeHandler(req: Request, res: Response){
+    const token = getBearerToken(req).slice(7);
+    await revokeRefreshToken(token);
+
+    res.status(204).send();
+}
+
 
 //users handlers
 async function addUser(req: Request, res: Response){
@@ -71,19 +93,16 @@ async function addUser(req: Request, res: Response){
 async function loginHandler(req: Request, res: Response){
     const user = await getUserFromEmail(req.body.email);
 
-    const expiresInSeconds = req.body.expiresInSeconds ?? 3600;
-    const expires = expiresInSeconds > 3600 ? 3600 : expiresInSeconds;
-
-    const token = makeJWT(user.id, expires, config.api.secretString);
-
     if(user == undefined){
-        throw new UnauthorizedError("Incorrect email or password.");
+        throw new UnauthorizedError('Incorrect email or password.');
     }
 
+    const token = makeJWT(user.id, 3600, config.api.secretString);
+    const refreshToken = await createRefreshToken({token: makeRefreshToken(), userId: user.id, expiresAt: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000), revoked_at: null});
+
     if(await checkPasswordHash(req.body.password, user.password)){
-        //login
         const {password, ...noPass} = user;
-        const fullUser = {...noPass, "token": token}; 
+        const fullUser = {...noPass, "token": token, "refreshToken": refreshToken.token}; 
         res.status(200).send(fullUser);
     }
     else{
@@ -129,7 +148,7 @@ async function addChirp(req: Request, res: Response){
             res.status(201).send(chirp);
         }
         catch(e){
-            console.log(e);
+            throw e;
         }
     }
 }

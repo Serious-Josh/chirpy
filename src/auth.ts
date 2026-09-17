@@ -1,6 +1,8 @@
 import * as argon2 from "argon2";
 import jwt, { JwtPayload } from "jsonwebtoken"
 import {Request} from "express";
+import {randomBytes} from "node:crypto";
+import { UnauthorizedError } from "./errorHandling.js";
 
 type payload = Pick<JwtPayload, "iss" | "sub" | "iat" | "exp">;
 
@@ -42,12 +44,8 @@ export function validateJWT(tokenString: string, secret: string): string{
         return decoded.sub as string;
     }
     catch(err){
-        if(err instanceof Error){
-            throw new Error("Invalid JWT");
-        }
+        throw new UnauthorizedError("Invalid JWT");
     }
-
-    throw new Error("Unknown validation error");
 }
 
 export function getBearerToken(req: Request): string{
@@ -58,4 +56,14 @@ export function getBearerToken(req: Request): string{
     }
 
     return token;
+}
+
+
+// ---------------
+// Refresh Token Functions
+// ---------------
+
+export function makeRefreshToken(){
+    const token = randomBytes(32);
+    return token.toString('hex');
 }
