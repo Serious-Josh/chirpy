@@ -52,10 +52,10 @@ export function getBearerToken(req: Request): string{
     const token = req.get("Authorization");
 
     if(token == undefined){
-        throw new Error("No authorization information provided.");
+        throw new UnauthorizedError("No authorization information provided.");
     }
 
-    return token;
+    return token.slice(7);
 }
 
 

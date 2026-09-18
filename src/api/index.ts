@@ -1,8 +1,8 @@
 import express, {request, Request, Response} from "express";
 import {config} from "../config.js";
 import {BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError} from "../errorHandling.js";
-import { clearUsers, createUser, getUserFromEmail } from "../db/queries/users.js";
-import { createChirp, getAllChrips, getSingleChrip } from "../db/queries/chrips.js";
+import { clearUsers, createUser, getUserFromEmail, updateUserInfo } from "../db/queries/users.js";
+import { createChirp, deleteChrip, getAllChrips, getSingleChrip } from "../db/queries/chrips.js";
 import { checkPasswordHash, hashPassword, makeJWT, validateJWT, getBearerToken, makeRefreshToken } from "../auth.js"
 import { createRefreshToken, revokeRefreshToken, selectRefreshToken } from "../db/queries/refreshTokens.js";
 
@@ -12,6 +12,7 @@ export const adminRouter = express.Router();
 //api routing
 apiRouter.get("/healthz", handlerReadiness);
 apiRouter.post("/users", addUser);
+apiRouter.put("/users", updateUserHandler);
 apiRouter.post("/login", loginHandler);
 apiRouter.post("/refresh", refreshHandler);
 apiRouter.post("/revoke", revokeHandler);
@@ -20,6 +21,7 @@ apiRouter.post("/revoke", revokeHandler);
 apiRouter.get("/chirps", getChripsHandler);
 apiRouter.get("/chirps/:chirpId", getSingleChirpHandler);
 apiRouter.post("/chirps", addChirp);
+apiRouter.delete("/chirps/:chirpId", deleteChripHandler);
 
 
 //admin routing
@@ -28,11 +30,9 @@ adminRouter.post("/reset", handlerReset);
 
 
 
-//---------------
-// Handlers
-//---------------
-
-//general handlers
+// ---------------
+// General Handlers
+// ---------------
 export function handlerReadiness(req: Request, res: Response){
     res.set('Content-Type', 'text/plain; charset=utf-8');
     res.send(`OK`);
@@ -63,7 +63,7 @@ async function handlerReset(req: Request, res: Response){
 }
 
 async function refreshHandler(req: Request, res: Response){
-    const token = getBearerToken(req).slice(7);
+    const token = getBearerToken(req);
     const refreshToken = await selectRefreshToken(token);
 
     if(refreshToken == undefined){
@@ -75,14 +75,16 @@ async function refreshHandler(req: Request, res: Response){
 }
 
 async function revokeHandler(req: Request, res: Response){
-    const token = getBearerToken(req).slice(7);
+    const token = getBearerToken(req);
     await revokeRefreshToken(token);
 
     res.status(204).send();
 }
 
 
-//users handlers
+// ---------------
+// User Handlers
+// ---------------
 async function addUser(req: Request, res: Response){
     const user = await createUser({email: req.body.email,
                                 password: await hashPassword(req.body.password)});
@@ -110,8 +112,31 @@ async function loginHandler(req: Request, res: Response){
     }
 }
 
+async function updateUserHandler(req: Request, res: Response){
+    const pass = req.body.password;
+    const email = req.body.email;
 
-//chirps handlers
+    try{
+        const id = validateJWT(getBearerToken(req), config.api.secretString);
+
+        if(id != undefined){
+            const hashedPass = await hashPassword(pass);
+            const user = await updateUserInfo(id, email, hashedPass);
+            const {password, ...noPass} = user;
+            res.status(200).send(noPass);
+        }
+        else{
+            throw new UnauthorizedError("Error updating user information");
+        }
+    }catch(e){
+        throw e;
+    }
+}
+
+
+// ---------------
+// Chrip Handlers
+// ---------------
 async function addChirp(req: Request, res: Response){
     const reqBody = req.body;
 
@@ -136,20 +161,15 @@ async function addChirp(req: Request, res: Response){
 
         const cleanedBody = splitBody.join(" ");
 
-        try{
-            const userID = validateJWT(getBearerToken(req).slice(7), config.api.secretString);
+        const userID = validateJWT(getBearerToken(req), config.api.secretString);
 
-            if(userID == undefined){
-                throw new Error("Invalid authorization information.");
-            }
+        if(userID == undefined){
+            throw new Error("Invalid authorization information.");
+        }
 
-            const chirp = await createChirp({body: cleanedBody, userId: userID});
-            res.header("Content-Type", "application/json");
-            res.status(201).send(chirp);
-        }
-        catch(e){
-            throw e;
-        }
+        const chirp = await createChirp({body: cleanedBody, userId: userID});
+        res.header("Content-Type", "application/json");
+        res.status(201).send(chirp);
     }
 }
 
@@ -177,4 +197,26 @@ async function getSingleChirpHandler(req: Request, res: Response){
     }
     
     res.status(200).send(chirp);
+}
+
+async function deleteChripHandler(req: Request, res: Response){
+    const chirpId = req.params.chirpId;
+
+    if(typeof chirpId !== "string"){
+        throw new BadRequestError(`Incorrect chirpId. chirpId: ${chirpId}`);
+    }
+
+    const id = validateJWT(getBearerToken(req), config.api.secretString);
+    const chirp = await getSingleChrip(chirpId);
+
+    if(chirp == undefined){
+        throw new NotFoundError("Chrip not found");
+    }
+
+    if(id != chirp.userId){
+        throw new ForbiddenError("Unauthorized access to chirp");
+    }
+
+    await deleteChrip(chirpId);
+    res.status(204).send();
 }
