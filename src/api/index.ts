@@ -1,9 +1,9 @@
 import express, {request, Request, Response} from "express";
 import {config} from "../config.js";
 import {BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError} from "../errorHandling.js";
-import { clearUsers, createUser, getUserFromEmail, updateUserInfo } from "../db/queries/users.js";
+import { clearUsers, createUser, getUserFromEmail, updateUserInfo, upgradeUser } from "../db/queries/users.js";
 import { createChirp, deleteChrip, getAllChrips, getSingleChrip } from "../db/queries/chrips.js";
-import { checkPasswordHash, hashPassword, makeJWT, validateJWT, getBearerToken, makeRefreshToken } from "../auth.js"
+import { checkPasswordHash, hashPassword, makeJWT, validateJWT, getBearerToken, makeRefreshToken, getAPIKey } from "../auth.js"
 import { createRefreshToken, revokeRefreshToken, selectRefreshToken } from "../db/queries/refreshTokens.js";
 
 export const apiRouter = express.Router();
@@ -22,6 +22,9 @@ apiRouter.get("/chirps", getChripsHandler);
 apiRouter.get("/chirps/:chirpId", getSingleChirpHandler);
 apiRouter.post("/chirps", addChirp);
 apiRouter.delete("/chirps/:chirpId", deleteChripHandler);
+
+//webhooks
+apiRouter.post("/polka/webhooks", upgradeHandler);
 
 
 //admin routing
@@ -135,7 +138,7 @@ async function updateUserHandler(req: Request, res: Response){
 
 
 // ---------------
-// Chrip Handlers
+// Chirp Handlers
 // ---------------
 async function addChirp(req: Request, res: Response){
     const reqBody = req.body;
@@ -219,4 +222,32 @@ async function deleteChripHandler(req: Request, res: Response){
 
     await deleteChrip(chirpId);
     res.status(204).send();
+}
+
+
+// ---------------
+// Webhook Handlers
+// ---------------
+
+async function upgradeHandler(req: Request, res: Response){
+    const event = req.body.event;
+    const key = getAPIKey(req);
+
+    if(key != config.api.polkaKey){
+        throw new UnauthorizedError("Incorrect Webhook API Key");
+    }
+
+    if(event != "user.upgraded"){
+        res.status(204).send();
+    }
+    else{
+        const user = await upgradeUser(req.body.data.userId);
+
+        if(user == undefined){
+            throw new NotFoundError("User not found");
+        }
+        else{
+            res.status(204).send();
+        }
+    }
 }

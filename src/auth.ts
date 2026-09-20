@@ -67,3 +67,18 @@ export function makeRefreshToken(){
     const token = randomBytes(32);
     return token.toString('hex');
 }
+
+
+// ---------------
+// Webhook Functions
+// ---------------
+
+export function getAPIKey(req: Request){
+    const key = req.get("Authorization");
+
+    if(key == undefined){
+        throw new UnauthorizedError("No authorization information provided.");
+    }
+
+    return key.slice(7);
+}
