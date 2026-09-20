@@ -8,6 +8,11 @@ export async function createChirp(user: NewChrip){
     return result;
 }
 
+export async function getChripsAuthor(authorId: string){
+    const result = await db.select().from(chirps).where(eq(chirps.userId, authorId));
+    return result;
+}
+
 export async function getAllChrips(){
     const result = await db.select().from(chirps).orderBy(asc(chirps.createdAt));
     return result;

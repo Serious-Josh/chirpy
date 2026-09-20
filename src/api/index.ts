@@ -2,7 +2,7 @@ import express, {request, Request, Response} from "express";
 import {config} from "../config.js";
 import {BadRequestError, ForbiddenError, NotFoundError, UnauthorizedError} from "../errorHandling.js";
 import { clearUsers, createUser, getUserFromEmail, updateUserInfo, upgradeUser } from "../db/queries/users.js";
-import { createChirp, deleteChrip, getAllChrips, getSingleChrip } from "../db/queries/chrips.js";
+import { createChirp, deleteChrip, getAllChrips, getChripsAuthor, getSingleChrip } from "../db/queries/chrips.js";
 import { checkPasswordHash, hashPassword, makeJWT, validateJWT, getBearerToken, makeRefreshToken, getAPIKey } from "../auth.js"
 import { createRefreshToken, revokeRefreshToken, selectRefreshToken } from "../db/queries/refreshTokens.js";
 
@@ -177,13 +177,32 @@ async function addChirp(req: Request, res: Response){
 }
 
 async function getChripsHandler(req: Request, res: Response){
-    try{
-        const chrips = await getAllChrips();
-        res.status(200).send(chrips);
+    let authorId = "";
+    const authorIdQuery = req.query.authorId;
+    let chirps = [];
+    if(typeof authorIdQuery == "string"){
+        authorId = authorIdQuery;
+
+        chirps = await getChripsAuthor(authorId);
+        
     }
-    catch(e){
-        console.log(e);
+    else{
+        chirps = await getAllChrips();
     }
+
+    const sortQuery = req.query.sort;
+    if(typeof sortQuery == "string"){
+        switch(sortQuery){
+            case "asc":
+                chirps.sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+                break;
+            case "desc":
+                chirps.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+                break;
+        }
+    }
+
+    res.status(200).send(chirps);
 }
 
 async function getSingleChirpHandler(req: Request, res: Response){
